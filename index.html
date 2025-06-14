@@ -1,1 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
 
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="container">        <div class="header">
+            <div class="main-header-content">
+                <h1 class="title">Multi-List Task Manager</h1>
+                <div class="list-selector">
+                    <select id="listSelector" onchange="switchList()" class="list-dropdown">
+                        <!-- Lists will be populated dynamically -->
+                    </select>
+                    <button class="btn btn-sm" onclick="toggleListsPanel()">Manage Lists</button>
+                </div>
+                <div class="stats">
+                    <div class="stat">
+                        <span class="stat-number total" id="totalTasks">0</span>
+                        <div class="stat-label">Total</div>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number completed" id="completedTasks">0</span>
+                        <div class="stat-label">Done</div>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number pending" id="pendingTasks">0</span>
+                        <div class="stat-label">Pending</div>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number blocked" id="blockedTasks">0</span>
+                        <div class="stat-label">Blocked</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <input type="text" class="search-input" id="searchInput" placeholder="Search..."
+                    onkeyup="filterTasks()">
+                <div class="status-filter-container">
+                    <div class="status-filter-dropdown" onclick="toggleStatusDropdown()">
+                        <span id="statusFilterText">All Status</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </div>
+                    <div class="status-dropdown-menu" id="statusDropdownMenu">
+                        <label class="status-checkbox-item">
+                            <input type="checkbox" id="statusAll" checked onchange="handleStatusFilterChange()">
+                            <span>All Status</span>
+                        </label>
+                        <label class="status-checkbox-item">
+                            <input type="checkbox" id="statusCompleted" onchange="handleStatusFilterChange()">
+                            <span>Completed</span>
+                        </label>
+                        <label class="status-checkbox-item">
+                            <input type="checkbox" id="statusAssigned" onchange="handleStatusFilterChange()">
+                            <span>Assigned</span>
+                        </label>
+                        <label class="status-checkbox-item">
+                            <input type="checkbox" id="statusPending" onchange="handleStatusFilterChange()">
+                            <span>Pending</span>
+                        </label>
+                        <label class="status-checkbox-item">
+                            <input type="checkbox" id="statusBlocked" onchange="handleStatusFilterChange()">
+                            <span>Blocked</span>
+                        </label>
+                    </div>
+                </div>
+                <select class="filter-select" id="priorityFilter" onchange="filterTasks()">
+                    <option value="">All Priority</option>
+                    <option value="0">0</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10">10</option>
+                </select>
+            </div>
+            <div class="toolbar-right">
+                <div class="btn-with-indicator">
+                    <button class="btn" onclick="toggleAdvancedFilters()">Filters</button>
+                    <button class="filter-reset-indicator" id="filterResetIndicator" onclick="clearAllAdvancedFilters()"
+                        title="Clear all advanced filters" style="display: none;">×</button>
+                </div>
+                <button class="btn" onclick="openShortcutsModal()">Help</button>
+                <button class="btn" onclick="openColumnsModal()">Columns</button>
+                <button class="btn" onclick="openImportModal()">Import</button>
+                <button class="btn btn-info" onclick="copyToExcel()">Copy</button>
+                <button class="btn btn-success" onclick="exportToExcel()">Export</button>
+                <button class="btn btn-primary" onclick="openAddModal()">Add</button>
+                <button class="btn btn-danger" onclick="openResetModal()">Reset</button>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="task-table">
+                <thead>
+                    <tr>
+                        <th class="sr-column" data-sortable="true" data-column-id="sr">
+                            <span class="header-content editable" data-column-id="sr">
+                                Sr <span class="sort-indicator" id="sort-sr">↕</span>
+                            </span>
+                        </th>
+                        <th class="task-column" data-sortable="true" data-column-id="task">
+                            <span class="header-content editable" data-column-id="task">
+                                Task <span class="sort-indicator" id="sort-task">↕</span>
+                            </span>
+                        </th>
+                        <th class="priority-column" data-sortable="true" data-column-id="priority">
+                            <span class="header-content editable" data-column-id="priority">
+                                P <span class="sort-indicator" id="sort-priority">↕</span>
+                            </span>
+                        </th>
+                        <th class="resource-column" data-sortable="true" data-column-id="resource">
+                            <span class="header-content editable" data-column-id="resource">
+                                Resource <span class="sort-indicator" id="sort-resource">↕</span>
+                            </span>
+                        </th>
+                        <th class="status-column" data-sortable="true" data-column-id="status">
+                            <span class="header-content editable" data-column-id="status">
+                                Status <span class="sort-indicator" id="sort-status">↕</span>
+                            </span>
+                        </th>
+                        <th class="date-column" data-sortable="true" data-column-id="dueDate">
+                            <span class="header-content editable" data-column-id="dueDate">
+                                Due <span class="sort-indicator" id="sort-dueDate">↕</span>
+                            </span>
+                        </th>
+                        <th class="remarks-column">
+                            <span class="header-content editable" data-column-id="remarks">
+                                Remarks
+                            </span>
+                        </th>
+                        <th class="actions-column">
+                            <span class="header-content">
+                                Del
+                            </span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="taskTableBody">
+                </tbody>
+            </table>
+        </div>    </div>
+
+    <!-- Lists Management Side Panel -->
+    <div class="lists-management-panel" id="listsManagementPanel">
+        <div class="lists-panel-header">
+            <h3>Manage Lists</h3>
+            <div class="lists-panel-actions">
+                <button class="btn-icon" onclick="toggleListsPanel()" title="Close lists panel">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>        <div class="lists-panel-content">
+            <!-- Current Lists Section -->
+            <div class="current-lists-section">
+                <h4>Current Lists</h4>
+                <div class="lists-container" id="listsContainer">
+                    <!-- Lists will be populated here -->
+                </div>
+            </div>
+            
+            <!-- Add New List Section -->
+            <div class="add-list-section">
+                <h4>Create New List</h4>
+                <div class="form-group">
+                    <label for="newListName">Name *</label>
+                    <input type="text" id="newListName" placeholder="Enter list name..." maxlength="50">
+                </div>
+                <div class="form-group">
+                    <label for="newListDescription">Description</label>
+                    <textarea id="newListDescription" rows="2" placeholder="Optional description..." maxlength="200"></textarea>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="addNewList()">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Create List
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lists Panel Overlay -->
+    <div class="lists-panel-overlay" id="listsOverlay" onclick="toggleListsPanel()"></div>
+
+    <!-- Advanced Filters Side Panel -->
+    <div class="advanced-filters-panel" id="advancedFiltersPanel">
+        <div class="filters-panel-header">
+            <h3>Filters</h3>
+            <div class="filters-panel-actions">
+                <button class="btn-icon" onclick="clearAllFilters()" title="Clear all filters">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 6h18l-2 13H5L3 6zm5 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                    </svg>
+                </button>
+                <button class="btn-icon" onclick="toggleAdvancedFilters()" title="Close filters">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="filters-panel-content"> <!-- Add New Filter Section -->
+            <div class="add-filter-section">
+                <h4>Add Filter</h4>
+                <div class="filter-form">
+                    <div class="form-row-triple">
+                        <select id="filterColumn" onchange="updateFilterOperators()">
+                            <option value="">Column...</option>
+                        </select>
+                        <select id="filterOperator" onchange="updateFilterValueInput()">
+                            <option value="">Operator...</option>
+                        </select>
+                        <button type="button" class="btn btn-xs" onclick="addAdvancedFilter()">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46"></polygon>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="form-row-values" id="filterValuesRow">
+                        <input type="text" id="filterValue" placeholder="Value..." style="display: none;">
+                        <input type="text" id="filterValue2" placeholder="To value..." style="display: none;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Presets Section -->
+            <div class="filter-presets-section">
+                <div class="section-header">
+                    <h4>Saved Presets</h4>
+                    <div class="preset-count" id="presetCount">0 presets</div>
+                </div>
+
+                <div class="presets-content">
+                    <!-- Load Preset Area -->
+                    <div class="preset-load-area">
+                        <div class="preset-select-container">
+                            <select id="filterPresetsSelect" onchange="loadSelectedPreset()">
+                                <option value="">Choose a preset to load...</option>
+                            </select>
+                            <button type="button" class="btn-icon" onclick="loadFilterPreset()"
+                                title="Load Selected Preset">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                            <button type="button" class="btn-icon btn-danger" onclick="deleteFilterPreset()"
+                                title="Delete Selected Preset">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <polyline points="3,6 5,6 21,6"></polyline>
+                                    <path
+                                        d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v2">
+                                    </path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Save Preset Area -->
+                    <div class="preset-save-area">
+                        <div class="save-preset-header">
+                            <span>Save Current Filters</span>
+                        </div>
+                        <div class="preset-save-container">
+                            <input type="text" id="presetNameInput" placeholder="Enter preset name..." maxlength="50">
+                            <button type="button" class="btn-icon btn-primary" onclick="saveFilterPreset()"
+                                title="Save Current Filters as Preset">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"></path>
+                                    <polyline points="17,21 17,13 7,13 7,21"></polyline>
+                                    <polyline points="7,3 7,8 15,8"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="preset-save-hint">
+                            <span id="currentFiltersInfo">No filters to save</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Filters Section -->
+            <div class="quick-filters-section">
+                <h4>Quick Filters</h4>
+                <div class="quick-filters-list" id="quickFiltersList">
+                    <!-- Quick filters will be populated dynamically -->
+                </div>            </div>
+
+            <!-- Active Filters List -->
+            <div class="active-filters-section">
+                <div class="section-header">
+                    <h4>Active Filters</h4>
+                    <div class="filter-logic-options">
+                        <label class="radio-option compact">
+                            <input type="radio" name="filterLogic" value="AND" checked
+                                onchange="applyAdvancedFilters(); updateCurrentFiltersInfo();">
+                            <span>AND</span>
+                        </label>
+                        <label class="radio-option compact">
+                            <input type="radio" name="filterLogic" value="OR"
+                                onchange="applyAdvancedFilters(); updateCurrentFiltersInfo();">
+                            <span>OR</span>
+                        </label>
+                    </div>
+                    <span class="filter-count" id="activeFilterCount">0 filters</span>
+                </div>
+                <div class="active-filters-list" id="activeFiltersList">
+                    <!-- Active filters will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Panel Overlay -->
+    <div class="filters-panel-overlay" id="filtersOverlay" onclick="toggleAdvancedFilters()"></div>
+
+    <!-- Add/Edit Task Modal -->
+    <div class="modal" id="taskModal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Add New Task</h2>
+            <form id="taskForm">
+                <!-- Task Name - Full Width -->
+                <div class="form-group form-full">
+                    <label for="taskName" class="required">Task</label>
+                    <textarea id="taskName" required rows="3" placeholder="Task description..."></textarea>
+                </div>
+
+                <!-- Priority and Status Row -->
+                <div class="form-row">
+                    <div class="form-col">
+                        <div class="form-group">
+                            <label for="taskPriority" class="required">Priority</label>
+                            <select id="taskPriority" required>
+                                <option value="0">0</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8">8</option>
+                                <option value="9">9</option>
+                                <option value="10">10</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-col">
+                        <div class="form-group">
+                            <label for="taskStatus" class="required">Status</label>
+                            <select id="taskStatus" required>
+                                <option value="Pending">Pending</option>
+                                <option value="Assigned">Assigned</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Blocked">Blocked</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resource and Due Date Row -->
+                <div class="form-row">
+                    <div class="form-col">
+                        <div class="form-group">
+                            <label for="taskResource">Resource</label>
+                            <input type="text" id="taskResource" placeholder="Person name...">
+                        </div>
+                    </div>
+                    <div class="form-col">
+                        <div class="form-group">
+                            <label for="taskDueDate">Due Date</label>
+                            <input type="date" id="taskDueDate">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Remarks - Full Width -->
+                <div class="form-group form-full">
+                    <label for="taskRemarks">Remarks</label>
+                    <textarea id="taskRemarks" rows="3" placeholder="Additional notes..."></textarea>
+                </div>
+
+                <!-- Dynamic Custom Fields Container -->
+                <div id="customFieldsContainer">
+                    <!-- Custom fields will be dynamically inserted here -->
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Import Data Modal -->
+    <div class="modal" id="importModal">
+        <div class="modal-content">            <h2>Import Data</h2>
+            <div class="import-help">
+                <strong>Instructions:</strong><br>
+                1. Copy Excel data with headers<br>
+                2. Paste below and click Import<br>
+                3. This will replace all current data in the active list
+            </div>
+            <div class="form-group">
+                <label for="importData">Excel Data</label>
+                <textarea id="importData" class="import-textarea"
+                    placeholder="Sr.	Task	P	Resource	Status	Due	Remarks&#10;1	Task Name	1	John	Pending	01-01-2025	Notes"></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn" onclick="closeImportModal()">Cancel</button>
+                <button type="button" class="btn btn-info" onclick="importData()">Import</button>
+            </div>
+        </div>
+    </div> <!-- Column Management Modal -->
+    <div class="modal column-management-modal" id="columnsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Column Management</h2>
+                <button class="modal-close-btn" onclick="closeColumnsModal()">×</button>
+            </div>
+
+            <div class="columns-container">
+                <!-- Current Columns Section -->
+                <div class="columns-section current-columns">
+                    <div class="section-header">
+                        <h3>Current Columns</h3>
+                        <span class="column-count" id="columnCount">0 columns</span>
+                    </div>
+                    <div class="column-list" id="columnList">
+                        <!-- Dynamic column items will be inserted here -->
+                    </div>
+                </div>
+
+                <!-- Add New Column Section -->
+                <div class="columns-section add-column">
+                    <div class="section-header">
+                        <h3>Add New Column</h3>
+                        <button type="button" class="btn-icon" onclick="clearColumnForm()" title="Clear form">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M3 6h18l-2 13H5L3 6zm5 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="add-column-form">
+                        <div class="form-row">
+                            <div class="form-col-2">
+                                <label for="newColumnName">Column Name *</label>
+                                <input type="text" id="newColumnName" placeholder="Enter name..." required>
+                            </div>
+                            <div class="form-col-2">
+                                <label for="newColumnType">Type *</label> <select id="newColumnType" required
+                                    onchange="toggleColumnOptions()">
+                                    <option value="">Select type...</option>
+                                    <option value="text">Text</option>
+                                    <option value="textarea">Multi-line</option>
+                                    <option value="number">Number</option>
+                                    <option value="date">Date</option>
+                                    <option value="select">Dropdown</option>
+                                    <option value="email">Email</option>
+                                    <option value="url">URL</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row options-row" id="optionsInputGroup">
+                            <div class="form-col-full">
+                                <label for="newColumnOptions">Dropdown Options</label>
+                                <input type="text" id="newColumnOptions" placeholder="Option1, Option2, Option3">
+                                <div class="input-help">Comma-separated values</div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-col-3">
+                                <label for="newColumnAlignment">Alignment</label> <select id="newColumnAlignment">
+                                    <option value="left">Left</option>
+                                    <option value="center">Center</option>
+                                    <option value="right">Right</option>
+                                </select>
+                            </div>
+                            <div class="form-col-3">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="newColumnRequired">
+                                    <span class="checkmark"></span>
+                                    Required
+                                </label>
+                            </div>
+                            <div class="form-col-3">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="newColumnSortable" checked>
+                                    <span class="checkmark"></span>
+                                    Sortable
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-actions-inline">
+                            <button type="button" class="btn btn-primary" onclick="addNewColumn()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path d="M12 5v14m-7-7h14" />
+                                </svg>
+                                Add Column
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeColumnsModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="applyColumnChanges()">Apply Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Options Modal -->
+    <div class="modal" id="resetModal">
+        <div class="modal-content">
+            <h2>Reset Options</h2>
+            <p>Choose what you want to reset:</p>
+
+            <div class="reset-options">
+                <div class="reset-section">
+                    <h3>Data Reset</h3>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="resetTasks" checked>
+                        <span class="checkmark"></span>
+                        Reset task data to original
+                    </label>
+                </div>
+
+                <div class="reset-section">
+                    <h3>Column Management</h3>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="resetCustomColumns" checked>
+                        <span class="checkmark"></span>
+                        Remove all custom columns
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="resetColumnNames" checked>
+                        <span class="checkmark"></span>
+                        Reset column names to default
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="resetColumnOrder" checked>
+                        <span class="checkmark"></span>
+                        Reset column sequence/order
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="resetColumnWidths" checked>
+                        <span class="checkmark"></span>
+                        Reset column widths to default
+                    </label>
+                </div>                <div class="reset-section">
+                    <h3>Settings & Preferences</h3>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="resetFilters">
+                        <span class="checkmark"></span>
+                        Clear search and filter settings
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="resetFilterPresets">
+                        <span class="checkmark"></span>
+                        Delete all saved filter presets
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeResetModal()">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="performSelectiveReset()">Reset Selected</button>
+            </div>
+        </div>
+    </div> <!-- Shortcuts Help Modal -->
+    <div class="modal" id="shortcutsModal">
+        <div class="modal-content">
+            <h2>Keyboard Shortcuts & Help</h2>
+            <div class="help-grid">
+                <div class="help-section">
+                    <h3>Quick Start Guide</h3>
+                    <div class="help-content">
+                        <p><strong>Getting Started:</strong></p>
+                        <ul>
+                            <li>Use <kbd>Alt+N</kbd> to quickly add new tasks</li>
+                            <li>Double-click any task field to edit it inline</li>
+                            <li>Click priority numbers (0-10) to change priority</li>
+                            <li>Click status badges to cycle through states</li>
+                            <li>Use search and filters to find specific tasks</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="help-section">
+                    <h3>Pro Tips</h3>
+                    <div class="help-content">
+                        <ul>
+                            <li><strong>Column Management:</strong> Drag headers to reorder, double-click to rename</li>
+                            <li><strong>Sorting:</strong> Click column headers to sort data</li>
+                            <li><strong>Filtering:</strong> Use status checkboxes and priority dropdown</li>
+                            <li><strong>Resizing:</strong> Drag right edge of headers to resize</li>
+                            <li><strong>Custom Columns:</strong> Add columns with different data types</li>
+                            <li><strong>Data Import:</strong> Copy from Excel and paste in import dialog</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="shortcuts-grid">
+                <div class="shortcut-section">
+                    <h3>General Actions</h3>
+                    <div class="shortcut-item">
+                        <kbd>Alt</kbd> + <kbd>N</kbd>
+                        <span>Add new task</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Ctrl</kbd> + <kbd>I</kbd>
+                        <span>Import data</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Ctrl</kbd> + <kbd>M</kbd>
+                        <span>Manage columns</span>
+                    </div>                    <div class="shortcut-item">
+                        <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd>
+                        <span>Advanced filters</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>L</kbd>
+                        <span>Manage lists</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Ctrl</kbd> + <kbd>R</kbd>
+                        <span>Reset options</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd>
+                        <span>Copy to clipboard</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>E</kbd>
+                        <span>Export to Excel</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Ctrl</kbd> + <kbd>F</kbd>
+                        <span>Focus search</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>F1</kbd>
+                        <span>Show this help</span>
+                    </div>
+                </div>
+                <div class="shortcut-section">
+                    <h3>Task Interactions</h3>
+                    <div class="shortcut-item">
+                        <span class="action-desc">Double-click</span>
+                        <span>Edit task field</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="action-desc">Double-click header</span>
+                        <span>Edit column name</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="action-desc">Click priority</span>
+                        <span>Change priority</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="action-desc">Click status</span>
+                        <span>Cycle through statuses</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Enter</kbd>
+                        <span>Save edit</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Escape</kbd>
+                        <span>Cancel edit or close modal</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="action-desc">Hold Ctrl</span>
+                        <span>Show shortcuts overlay</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-primary" onclick="closeShortcutsModal()">Close</button>
+            </div>
+        </div>    </div>    <div class="toast" id="toast"></div>
+    <div class="resize-line" id="resizeLine"></div>
+    <div class="shortcuts-hint" id="shortcutsHint">
+        <strong>Shortcuts:</strong><br>
+        <kbd>Alt+N</kbd> Add<br>
+        <kbd>Ctrl+I</kbd> Import<br>
+        <kbd>Ctrl+M</kbd> Columns<br>        <kbd>Ctrl+Shift+F</kbd> Filters<br>
+        <kbd>Ctrl+Shift+L</kbd> Lists<br>
+        <kbd>Ctrl+R</kbd> Reset<br>
+        <kbd>Ctrl+Shift+C</kbd> Copy<br>
+        <kbd>Ctrl+Shift+E</kbd> Export<br>
+        <kbd>Ctrl+F</kbd> Search<br>
+        <kbd>F1</kbd> Help
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
