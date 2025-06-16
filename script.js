@@ -49,6 +49,112 @@ function updatePageTitle() {
     }
 }
 
+// Editable title functions
+function startEditListTitle() {
+    const titleElement = document.querySelector('.title');
+    if (!titleElement || !allListsData[currentListId]) return;
+    
+    const currentName = allListsData[currentListId].name;
+    
+    // Create input element
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = currentName;
+    input.className = 'title-input';
+    input.maxLength = 50;
+    
+    // Add editing class to title element
+    titleElement.classList.add('editing');
+    
+    // Replace title text with input
+    titleElement.textContent = '';
+    titleElement.appendChild(input);
+    
+    // Focus and select all text
+    input.focus();
+    input.select();
+    
+    // Event handlers
+    input.addEventListener('blur', finishEditListTitle);
+    input.addEventListener('keydown', handleTitleKeydown);
+    
+    // Prevent double-click from triggering again
+    titleElement.style.pointerEvents = 'none';
+}
+
+function handleTitleKeydown(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        finishEditListTitle();
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        cancelEditListTitle();
+    }
+}
+
+function finishEditListTitle() {
+    const titleElement = document.querySelector('.title');
+    const input = titleElement.querySelector('.title-input');
+    
+    if (!input || !allListsData[currentListId]) {
+        cancelEditListTitle();
+        return;
+    }
+    
+    const newName = input.value.trim();
+    
+    // Validate name
+    if (!newName) {
+        showToast('List name cannot be empty', 'error');
+        input.focus();
+        return;
+    }
+    
+    // Check if name already exists (excluding current list)
+    const existingList = Object.values(allListsData).find(list => 
+        list.id !== currentListId && list.name.toLowerCase() === newName.toLowerCase()
+    );
+    
+    if (existingList) {
+        showToast('A list with this name already exists', 'error');
+        input.focus();
+        return;
+    }
+    
+    // Update list name
+    allListsData[currentListId].name = newName;
+    
+    // Save data
+    saveAllListsData();
+    
+    // Update UI
+    resetTitleElement();
+    updatePageTitle();
+    populateListSelector();
+    populateListsContainer();
+    
+    showToast('List name updated successfully', 'success');
+}
+
+function cancelEditListTitle() {
+    resetTitleElement();
+    updatePageTitle();
+}
+
+function resetTitleElement() {
+    const titleElement = document.querySelector('.title');
+    if (!titleElement) return;
+    
+    // Remove editing class
+    titleElement.classList.remove('editing');
+    
+    // Restore pointer events
+    titleElement.style.pointerEvents = '';
+    
+    // Clear content and restore original functionality
+    titleElement.innerHTML = '';
+}
+
 function loadData() {
     // Load all lists data
     const savedListsData = localStorage.getItem('taskManagerListsData');
@@ -113,6 +219,12 @@ function saveAllListsData() {
 // List management functions
 function populateListSelector() {
     const listSelector = document.getElementById('listSelector');
+    
+    // Check if the list selector dropdown exists (it may have been removed from the UI)
+    if (!listSelector) {
+        return;
+    }
+    
     listSelector.innerHTML = '';
     
     Object.values(allListsData).forEach(list => {
@@ -128,6 +240,12 @@ function populateListSelector() {
 
 function switchList() {
     const listSelector = document.getElementById('listSelector');
+    
+    // Check if the list selector dropdown exists (it may have been removed from the UI)
+    if (!listSelector) {
+        return;
+    }
+    
     const newListId = listSelector.value;
     
     if (newListId !== currentListId && allListsData[newListId]) {

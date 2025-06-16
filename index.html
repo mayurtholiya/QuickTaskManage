@@ -9,14 +9,22 @@
 </head>
 
 <body>
-    <div class="container">        <div class="header">
+    <div class="container">
+        <div class="header">
             <div class="main-header-content">
-                <h1 class="title">Multi-List Task Manager</h1>
-                <div class="list-selector">
-                    <select id="listSelector" onchange="switchList()" class="list-dropdown">
-                        <!-- Lists will be populated dynamically -->
-                    </select>
-                    <button class="btn btn-sm" onclick="toggleListsPanel()">Manage Lists</button>
+                <div class="header-left">
+                    <button class="menu-toggle-btn" onclick="toggleListsPanel()" title="Manage Lists">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    <span>
+                        <h1 class="title editable-title" ondblclick="startEditListTitle()"
+                            title="Double-click to edit list name">Multi-List Task Manager</h1>
+                    </span>
                 </div>
                 <div class="stats">
                     <div class="stat">
@@ -87,18 +95,18 @@
                 </select>
             </div>
             <div class="toolbar-right">
+                <button class="btn" onclick="openShortcutsModal()">Help</button>
+                <button class="btn" onclick="copyToExcel()">Copy</button>
+                <button class="btn" onclick="openImportModal()">Import</button>
+                <button class="btn" onclick="exportToExcel()">Export</button>
+                <button class="btn" onclick="openColumnsModal()">Columns</button>
+                <button class="btn" onclick="openResetModal()">Reset</button>
                 <div class="btn-with-indicator">
                     <button class="btn" onclick="toggleAdvancedFilters()">Filters</button>
                     <button class="filter-reset-indicator" id="filterResetIndicator" onclick="clearAllAdvancedFilters()"
                         title="Clear all advanced filters" style="display: none;">×</button>
                 </div>
-                <button class="btn" onclick="openShortcutsModal()">Help</button>
-                <button class="btn" onclick="openColumnsModal()">Columns</button>
-                <button class="btn" onclick="openImportModal()">Import</button>
-                <button class="btn btn-info" onclick="copyToExcel()">Copy</button>
-                <button class="btn btn-success" onclick="exportToExcel()">Export</button>
-                <button class="btn btn-primary" onclick="openAddModal()">Add</button>
-                <button class="btn btn-danger" onclick="openResetModal()">Reset</button>
+                <button class="btn btn-info" onclick="openAddModal()">Add</button>
             </div>
         </div>
 
@@ -151,7 +159,8 @@
                 <tbody id="taskTableBody">
                 </tbody>
             </table>
-        </div>    </div>
+        </div>
+    </div>
 
     <!-- Lists Management Side Panel -->
     <div class="lists-management-panel" id="listsManagementPanel">
@@ -165,7 +174,8 @@
                     </svg>
                 </button>
             </div>
-        </div>        <div class="lists-panel-content">
+        </div>
+        <div class="lists-panel-content">
             <!-- Current Lists Section -->
             <div class="current-lists-section">
                 <h4>Current Lists</h4>
@@ -173,7 +183,7 @@
                     <!-- Lists will be populated here -->
                 </div>
             </div>
-            
+
             <!-- Add New List Section -->
             <div class="add-list-section">
                 <h4>Create New List</h4>
@@ -183,10 +193,12 @@
                 </div>
                 <div class="form-group">
                     <label for="newListDescription">Description</label>
-                    <textarea id="newListDescription" rows="2" placeholder="Optional description..." maxlength="200"></textarea>
+                    <textarea id="newListDescription" rows="2" placeholder="Optional description..."
+                        maxlength="200"></textarea>
                 </div>
                 <button type="button" class="btn btn-primary" onclick="addNewList()">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        style="margin-right: 6px;">
                         <line x1="12" y1="5" x2="12" y2="19"></line>
                         <line x1="5" y1="12" x2="19" y2="12"></line>
                     </svg>
@@ -307,7 +319,8 @@
                 <h4>Quick Filters</h4>
                 <div class="quick-filters-list" id="quickFiltersList">
                     <!-- Quick filters will be populated dynamically -->
-                </div>            </div>
+                </div>
+            </div>
 
             <!-- Active Filters List -->
             <div class="active-filters-section">
@@ -418,7 +431,8 @@
 
     <!-- Import Data Modal -->
     <div class="modal" id="importModal">
-        <div class="modal-content">            <h2>Import Data</h2>
+        <div class="modal-content">
+            <h2>Import Data</h2>
             <div class="import-help">
                 <strong>Instructions:</strong><br>
                 1. Copy Excel data with headers<br>
@@ -578,7 +592,8 @@
                         <span class="checkmark"></span>
                         Reset column widths to default
                     </label>
-                </div>                <div class="reset-section">
+                </div>
+                <div class="reset-section">
                     <h3>Settings & Preferences</h3>
                     <label class="checkbox-label">
                         <input type="checkbox" id="resetFilters">
@@ -644,7 +659,8 @@
                     <div class="shortcut-item">
                         <kbd>Ctrl</kbd> + <kbd>M</kbd>
                         <span>Manage columns</span>
-                    </div>                    <div class="shortcut-item">
+                    </div>
+                    <div class="shortcut-item">
                         <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd>
                         <span>Advanced filters</span>
                     </div>
@@ -709,13 +725,15 @@
             <div class="form-actions">
                 <button type="button" class="btn btn-primary" onclick="closeShortcutsModal()">Close</button>
             </div>
-        </div>    </div>    <div class="toast" id="toast"></div>
+        </div>
+    </div>
+    <div class="toast" id="toast"></div>
     <div class="resize-line" id="resizeLine"></div>
     <div class="shortcuts-hint" id="shortcutsHint">
         <strong>Shortcuts:</strong><br>
         <kbd>Alt+N</kbd> Add<br>
         <kbd>Ctrl+I</kbd> Import<br>
-        <kbd>Ctrl+M</kbd> Columns<br>        <kbd>Ctrl+Shift+F</kbd> Filters<br>
+        <kbd>Ctrl+M</kbd> Columns<br> <kbd>Ctrl+Shift+F</kbd> Filters<br>
         <kbd>Ctrl+Shift+L</kbd> Lists<br>
         <kbd>Ctrl+R</kbd> Reset<br>
         <kbd>Ctrl+Shift+C</kbd> Copy<br>
