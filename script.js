@@ -10,6 +10,14 @@ let selectedStatuses = []; // Track selected status filters
 // List management variables
 let editingListId = null;
 
+// Authentication variables
+let isEditMode = false;
+let isAuthenticated = false;
+let passwordHash = null;
+let autoLockTimer = null;
+let autoLockTimeout = 30 * 60 * 1000; // 30 minutes in milliseconds
+let sessionRemembered = false;
+
 // Column management variables
 let customColumns = [];
 let editingColumnIndex = -1;
@@ -49,8 +57,373 @@ function updatePageTitle() {
     }
 }
 
+// Authentication System Functions
+function initializeAuthentication() {
+    // Load password hash from localStorage
+    passwordHash = localStorage.getItem('taskManagerPasswordHash');
+    
+    // Check authentication state
+    if (!passwordHash) {
+        // First time setup - start in view mode but show setup dialog
+        setViewMode();
+        // Don't show setup immediately, let user click unlock first
+    } else if (passwordHash === 'DISABLED') {
+        // Authentication is disabled - go directly to edit mode
+        setEditMode();
+    } else {
+        // Password exists - start in view mode
+        setViewMode();
+    }
+      // Initialize auto-lock timer (only if authentication is enabled)
+    if (passwordHash !== 'DISABLED') {
+        resetAutoLockTimer();
+    }
+}
+
+function generateSalt() {
+    const array = new Uint8Array(16);
+    crypto.getRandomValues(array);
+    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function hashPassword(password, salt) {
+    return new Promise((resolve) => {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(password + salt);
+        crypto.subtle.digest('SHA-256', data).then(hashBuffer => {
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            resolve(salt + ':' + hashHex);
+        });
+    });
+}
+
+async function verifyPassword(password, storedHash) {
+    if (!storedHash) return false;
+    
+    const [salt, hash] = storedHash.split(':');
+    if (!salt || !hash) return false;
+    
+    const computedHash = await hashPassword(password, salt);
+    return computedHash === storedHash;
+}
+
+function checkPasswordStrength(password) {
+    if (password.length < 4) return 'weak';
+    if (password.length < 8) return 'medium';
+    if (password.length >= 8 && /[A-Z]/.test(password) && /[0-9]/.test(password)) return 'strong';
+    return 'medium';
+}
+
+function setEditMode() {
+    isEditMode = true;
+    isAuthenticated = true;
+    
+    // Add edit mode class to body
+    document.body.classList.add('edit-mode');
+    
+    // Update UI
+    updateModeIndicator();
+    updateAuthToggleButton();
+    updateUIForMode();
+    
+    // Start auto-lock timer
+    resetAutoLockTimer();
+    
+    showToast('Edit mode activated', 'success');
+}
+
+function setViewMode() {
+    isEditMode = false;
+    isAuthenticated = false;
+    sessionRemembered = false;
+    
+    // Remove edit mode class from body
+    document.body.classList.remove('edit-mode');
+    
+    // Clear auto-lock timer
+    if (autoLockTimer) {
+        clearTimeout(autoLockTimer);
+        autoLockTimer = null;
+    }
+    
+    // Update UI
+    updateModeIndicator();
+    updateAuthToggleButton();
+    updateUIForMode();
+    
+    // Close any open modals
+    closeAllModals();
+}
+
+function updateModeIndicator() {
+    // Mode indicator is now handled by updateAuthToggleButton()
+    // This function is kept for compatibility but does nothing
+}
+
+function updateAuthToggleButton() {
+    const button = document.getElementById('authToggleBtn');
+    const modeIndicator = document.getElementById('modeIndicator');
+    
+    if (button && modeIndicator) {
+        if (isEditMode) {
+            button.classList.add('unlocked');
+            button.classList.remove('locked');
+            button.title = 'Click to lock and switch to view mode';
+            modeIndicator.textContent = 'EDIT MODE';
+        } else {
+            button.classList.remove('unlocked');
+            button.classList.add('locked');
+            button.title = 'Click to unlock and switch to edit mode';
+            modeIndicator.textContent = 'VIEW MODE';
+        }
+    }
+}
+
+function updateUIForMode() {
+    if (isEditMode) {
+        // EDIT MODE - Enable all controls
+        
+        // Show toolbar buttons (except Help which is always visible)
+        const toolbarButtons = document.querySelectorAll('.toolbar-right .btn:not([onclick="openShortcutsModal()"])');
+        toolbarButtons.forEach(btn => {
+            btn.classList.remove('view-mode-hidden');
+        });
+        
+        // Enable title editing
+        const titleElement = document.querySelector('.editable-title');
+        if (titleElement) {
+            titleElement.classList.remove('view-mode-disabled');
+            titleElement.style.pointerEvents = 'auto';
+        }
+        
+        // Enable menu toggle
+        const menuToggle = document.querySelector('.menu-toggle-btn');
+        if (menuToggle) {
+            menuToggle.classList.remove('view-mode-hidden');
+        }
+        
+        // Enable column header editing
+        const columnHeaders = document.querySelectorAll('th .editable');
+        columnHeaders.forEach(header => {
+            header.classList.remove('view-mode-disabled');
+            header.style.pointerEvents = 'auto';
+        });
+        
+        // Show delete column
+        const deleteColumn = document.querySelectorAll('.actions-column');
+        if (deleteColumn) {
+            deleteColumn.forEach(col => col.classList.remove('view-mode-hidden'));
+        }
+        
+        // Show all delete buttons in rows
+        const deleteButtons = document.querySelectorAll('.delete-btn');
+        deleteButtons.forEach(btn => {
+            btn.classList.remove('view-mode-hidden');
+        });
+          // Enable inline editing
+        enableInlineEditing();
+        
+        // Show the "Add New List" section in edit mode
+        const addListSection = document.querySelector('.add-list-section');
+        if (addListSection) {
+            addListSection.classList.remove('view-mode-hidden');
+        }
+        
+    } else {
+        // VIEW MODE - Disable editing but allow read-only operations
+        
+        // Hide editing buttons but keep read-only ones visible
+        const editingButtons = document.querySelectorAll('.btn[onclick="openAddModal()"], .btn[onclick="openImportModal()"], .btn[onclick="openColumnsModal()"], .btn[onclick="openResetModal()"]');
+        editingButtons.forEach(btn => {
+            btn.classList.add('view-mode-hidden');
+        });
+        
+        // Keep these buttons visible in view mode (read-only operations)
+        const readOnlyButtons = document.querySelectorAll('.btn[onclick="copyToExcel()"], .btn[onclick="exportToExcel()"], .btn[onclick="toggleAdvancedFilters()"], .btn[onclick="openShortcutsModal()"]');
+        readOnlyButtons.forEach(btn => {
+            btn.classList.remove('view-mode-hidden');
+        });
+          // Keep menu toggle visible (for list management - read access)
+        const menuToggle = document.querySelector('.menu-toggle-btn');
+        if (menuToggle) {
+            menuToggle.classList.remove('view-mode-hidden');
+        }
+        
+        // Disable title editing
+        const titleElement = document.querySelector('.editable-title');
+        if (titleElement) {
+            titleElement.classList.add('view-mode-disabled');
+            titleElement.style.pointerEvents = 'none';
+        }
+        
+        // Disable column header editing
+        const columnHeaders = document.querySelectorAll('th .editable');
+        columnHeaders.forEach(header => {
+            header.classList.add('view-mode-disabled');
+            header.style.pointerEvents = 'none';
+        });
+        
+        // Hide delete column
+        const deleteColumn = document.querySelectorAll('.actions-column');
+        if (deleteColumn) {
+            deleteColumn.forEach(col => col.classList.add('view-mode-hidden'));
+        }
+        
+        // Hide all delete buttons in rows
+        const deleteButtons = document.querySelectorAll('.delete-btn');
+        deleteButtons.forEach(btn => {
+            btn.classList.add('view-mode-hidden');
+        });        // Disable inline editing
+        disableInlineEditing();
+          // Hide the "Add New List" section in view mode
+        const addListSection = document.querySelector('.add-list-section');
+        if (addListSection) {
+            addListSection.classList.add('view-mode-hidden');
+        }
+          // Hide preset management controls in view mode
+        const presetSaveSection = document.querySelector('.preset-save-area');
+        if (presetSaveSection) {
+            presetSaveSection.classList.add('view-mode-hidden');
+        }
+        
+        // Hide preset delete buttons
+        const presetDeleteButtons = document.querySelectorAll('.preset-delete-btn');
+        presetDeleteButtons.forEach(btn => {
+            btn.classList.add('view-mode-hidden');
+        });
+    }
+    
+    // Update list panel to show/hide edit buttons based on mode
+    populateListsContainer();
+}
+
+function enableInlineEditing() {
+    // Enable table cell double-click editing
+    const tableCells = document.querySelectorAll('td[ondblclick]');
+    tableCells.forEach(cell => {
+        cell.style.pointerEvents = 'auto';
+        cell.classList.remove('view-mode-disabled');
+    });
+    
+    // Enable status badges clicking
+    const statusBadges = document.querySelectorAll('.status-badge');
+    statusBadges.forEach(badge => {
+        badge.style.pointerEvents = 'auto';
+        badge.classList.remove('view-mode-disabled');
+    });
+    
+    // Enable priority number clicking
+    const priorityNumbers = document.querySelectorAll('.priority-number');
+    priorityNumbers.forEach(priority => {
+        priority.style.pointerEvents = 'auto';
+        priority.classList.remove('view-mode-disabled');
+    });
+    
+    // Enable any other clickable elements in table cells
+    const clickableElements = document.querySelectorAll('td [onclick], td [onchange], td select, td input');
+    clickableElements.forEach(element => {
+        element.style.pointerEvents = 'auto';
+        element.classList.remove('view-mode-disabled');
+        element.disabled = false;
+    });
+}
+
+function disableInlineEditing() {
+    // Disable table cell double-click editing
+    const tableCells = document.querySelectorAll('td[ondblclick]');
+    tableCells.forEach(cell => {
+        cell.style.pointerEvents = 'none';
+        cell.classList.add('view-mode-disabled');
+    });
+    
+    // Disable status badges clicking
+    const statusBadges = document.querySelectorAll('.status-badge');
+    statusBadges.forEach(badge => {
+        badge.style.pointerEvents = 'none';
+        badge.classList.add('view-mode-disabled');
+    });
+    
+    // Disable priority number clicking
+    const priorityNumbers = document.querySelectorAll('.priority-number');
+    priorityNumbers.forEach(priority => {
+        priority.style.pointerEvents = 'none';
+        priority.classList.add('view-mode-disabled');
+    });
+    
+    // Disable any other clickable elements in table cells
+    const clickableElements = document.querySelectorAll('td [onclick], td [onchange], td select, td input');
+    clickableElements.forEach(element => {
+        element.style.pointerEvents = 'none';
+        element.classList.add('view-mode-disabled');
+        element.disabled = true;
+    });
+    
+    // Also disable any inline editing that might be currently active
+    const editingElements = document.querySelectorAll('td input, td select, td textarea');
+    editingElements.forEach(element => {
+        if (element.classList.contains('inline-edit')) {
+            // Cancel any active inline editing
+            const event = new Event('blur');
+            element.dispatchEvent(event);
+        }
+    });
+}
+
+function resetAutoLockTimer() {
+    if (!isEditMode || !sessionRemembered) return;
+    
+    if (autoLockTimer) {
+        clearTimeout(autoLockTimer);
+    }
+    
+    autoLockTimer = setTimeout(() => {
+        setViewMode();
+        showToast('Session timed out. Switched to view mode.', 'warning');
+    }, autoLockTimeout);
+}
+
+function requireEditMode() {
+    if (!isEditMode) {
+        showToast('Edit mode required for this action', 'error');
+        return false;
+    }
+    
+    // Reset the auto-lock timer on user activity
+    resetAutoLockTimer();
+    return true;
+}
+
+function toggleAuthMode() {
+    if (passwordHash === 'DISABLED') {
+        // Authentication is disabled, toggle freely
+        if (isEditMode) {
+            setViewMode();
+            showToast('Switched to View Mode', 'info');
+        } else {
+            setEditMode();
+            showToast('Switched to Edit Mode', 'success');
+        }
+    } else if (isEditMode) {
+        setViewMode();
+    } else {
+        openPasswordModal();
+    }
+}
+
+function closeAllModals() {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        if (modal.style.display === 'flex') {
+            modal.style.display = 'none';
+        }
+    });
+}
+
 // Editable title functions
 function startEditListTitle() {
+    if (!requireEditMode()) return;
+    
     const titleElement = document.querySelector('.title');
     if (!titleElement || !allListsData[currentListId]) return;
     
@@ -260,10 +633,12 @@ function switchList() {
         renderTasks();
         updateStats();
         saveAllListsData();
-        
-        // Clear filters and search
+          // Clear filters and search
         clearAllFilters();
         document.getElementById('searchInput').value = '';
+        
+        // Close the lists panel
+        closeListsPanel();
         
         showToast(`Switched to "${allListsData[currentListId].name}"`);
     }
@@ -276,22 +651,24 @@ function switchToList(listId) {
           // Switch to new list
         currentListId = listId;
         tasks = [...(allListsData[currentListId].tasks || [])];
-        
-        // Update UI
+          // Update UI
         updatePageTitle();
         renderTasks();
         updateStats();
         saveAllListsData();
         
-        // Update list selector dropdown
-        document.getElementById('listSelector').value = listId;
+        // Update list selector dropdown (if it exists)
+        const listSelector = document.getElementById('listSelector');
+        if (listSelector) {
+            listSelector.value = listId;
+        }
         
         // Clear filters and search
         clearAllFilters();
         document.getElementById('searchInput').value = '';
         
         // Close the lists panel
-        toggleListsPanel();
+        closeListsPanel();
         
         showToast(`Switched to "${allListsData[currentListId].name}"`);
     }
@@ -300,14 +677,17 @@ function switchToList(listId) {
 function toggleListsPanel() {
     const panel = document.getElementById('listsManagementPanel');
     const overlay = document.getElementById('listsOverlay');
+    const toggleBtn = document.querySelector('.menu-toggle-btn');
     
     if (panel.classList.contains('open')) {
         panel.classList.remove('open');
         overlay.classList.remove('active');
+        toggleBtn.classList.remove('active');
         editingListId = null;
     } else {
         panel.classList.add('open');
         overlay.classList.add('active');
+        toggleBtn.classList.add('active');
         populateListsContainer();
     }
 }
@@ -367,6 +747,8 @@ function populateListsContainer() {
 }
 
 function addNewList() {
+    if (!requireEditMode()) return;
+    
     const nameInput = document.getElementById('newListName');
     const descriptionInput = document.getElementById('newListDescription');
     
@@ -401,16 +783,20 @@ function addNewList() {
     // Clear form
     nameInput.value = '';
     descriptionInput.value = '';
-    
-    // Save and update UI
+      // Save and update UI
     saveAllListsData();
     populateListSelector();
     populateListsContainer();
     
     showToast(`List "${name}" created successfully`);
+    
+    // Close the panel after successful creation
+    closeListsPanel();
 }
 
 function editList(listId) {
+    if (!requireEditMode()) return;
+    
     const list = allListsData[listId];
     if (!list) return;
     
@@ -462,16 +848,20 @@ function updateList() {
     const addButton = document.querySelector('.add-list-section button');
     addButton.textContent = 'Create List';
     addButton.onclick = addNewList;
-    
-    // Save and update UI
+      // Save and update UI
     saveAllListsData();
     populateListSelector();
     populateListsContainer();
     
     showToast(`List "${name}" updated successfully`);
+    
+    // Close the panel after successful update
+    closeListsPanel();
 }
 
 function deleteList(listId) {
+    if (!requireEditMode()) return;
+    
     const list = allListsData[listId];
     if (!list) return;
     
@@ -493,8 +883,7 @@ function deleteList(listId) {
     
     // Delete the list
     delete allListsData[listId];
-    
-    // Save and update UI
+      // Save and update UI
     saveAllListsData();
     populateListSelector();
     populateListsContainer();
@@ -502,6 +891,43 @@ function deleteList(listId) {
     updateStats();
     
     showToast(`List "${list.name}" deleted successfully`);
+      // Close the panel after successful deletion
+    closeListsPanel();
+}
+
+// List navigation helper functions
+function switchToPreviousList() {
+    const listIds = Object.keys(allListsData);
+    const currentIndex = listIds.indexOf(currentListId);
+    
+    if (currentIndex > 0) {
+        switchToList(listIds[currentIndex - 1]);
+    } else {
+        // Wrap to last list
+        switchToList(listIds[listIds.length - 1]);
+    }
+}
+
+function switchToNextList() {
+    const listIds = Object.keys(allListsData);
+    const currentIndex = listIds.indexOf(currentListId);
+    
+    if (currentIndex < listIds.length - 1) {
+        switchToList(listIds[currentIndex + 1]);
+    } else {
+        // Wrap to first list
+        switchToList(listIds[0]);
+    }
+}
+
+function switchToListByIndex(index) {
+    const listIds = Object.keys(allListsData);
+    if (index >= 0 && index < listIds.length) {
+        switchToList(listIds[index]);
+        showToast(`Switched to list ${index + 1}: "${allListsData[listIds[index]].name}"`);
+    } else {
+        showToast(`List ${index + 1} does not exist`, 'error');
+    }
 }
 
 function escapeHtml(text) {
@@ -702,8 +1128,7 @@ function renderTasks() {
             return renderTaskCell(task, column);
         }).join('');
 
-        return `<tr data-id="${task.sr}" class="status-row-${task.status.toLowerCase()}">${cells}</tr>`;
-    }).join('');
+        return `<tr data-id="${task.sr}" class="status-row-${task.status.toLowerCase()}">${cells}</tr>`;    }).join('');
 
     document.querySelectorAll('.editable').forEach(el => {
         el.addEventListener('dblclick', function () {
@@ -717,6 +1142,9 @@ function renderTasks() {
         initializeColumnResize();
         loadColumnWidths();
     }, 50);
+    
+    // Apply view mode restrictions to newly rendered content
+    updateUIForMode();
 }
 
 function renderTaskCell(task, column) {
@@ -769,6 +1197,8 @@ function renderTaskCell(task, column) {
 
 // Dropdown functions
 function showPriorityDropdown(sr, element) {
+    if (!requireEditMode()) return;
+    
     const existingDropdown = document.querySelector('.priority-dropdown');
     if (existingDropdown) {
         existingDropdown.remove();
@@ -802,6 +1232,8 @@ function showPriorityDropdown(sr, element) {
 }
 
 function showSelectDropdown(sr, fieldId, element) {
+    if (!requireEditMode()) return;
+    
     const existingDropdown = document.querySelector('.priority-dropdown');
     if (existingDropdown) {
         existingDropdown.remove();
@@ -862,6 +1294,7 @@ function changePriority(sr, newPriority) {
 
 // Inline editing functions
 function startInlineEdit(element) {
+    if (!requireEditMode()) return;
     if (element.classList.contains('editing')) return;
 
     const field = element.dataset.field;
@@ -1068,6 +1501,8 @@ function startHeaderEdit(element) {
 
 // Status management functions
 function cycleStatus(sr) {
+    if (!requireEditMode()) return;
+    
     const statuses = ['Pending', 'Assigned', 'Completed', 'Blocked'];
     const task = tasks.find(t => t.sr === sr);
     if (task) {
@@ -1154,6 +1589,8 @@ function updateStatusFilterText() {
 }
 
 function deleteTask(sr) {
+    if (!requireEditMode()) return;
+    
     if (confirm('Delete this task?')) {
         tasks = tasks.filter(t => t.sr !== sr);
         saveData();
@@ -1165,6 +1602,8 @@ function deleteTask(sr) {
 
 // Modal functions
 function openAddModal() {
+    if (!requireEditMode()) return;
+    
     editingIndex = -1;
     document.getElementById('modalTitle').textContent = 'Add New Task';
     document.getElementById('taskForm').reset();
@@ -1173,6 +1612,8 @@ function openAddModal() {
 }
 
 function openEditModal(task, index) {
+    if (!requireEditMode()) return;
+    
     editingIndex = index;
     document.getElementById('modalTitle').textContent = 'Edit Task';
 
@@ -1283,6 +1724,8 @@ function generateFieldHTML(column) {
 }
 
 function openImportModal() {
+    if (!requireEditMode()) return;
+    
     document.getElementById('importModal').classList.add('show');
     // Focus the import textarea for better user experience
     setTimeout(() => {
@@ -1306,8 +1749,220 @@ function closeShortcutsModal() {
     document.getElementById('shortcutsModal').classList.remove('show');
 }
 
+// Password Modal Functions
+function openPasswordModal() {
+    const modal = document.getElementById('passwordModal');
+    const title = document.getElementById('passwordModalTitle');
+    const description = document.getElementById('passwordModalDescription');
+    const passwordInput = document.getElementById('passwordInput');
+    const confirmSection = document.getElementById('setupPasswordSection');
+    const rememberContainer = document.getElementById('rememberSessionContainer');
+    const noAuthContainer = document.getElementById('noAuthContainer');
+    const forgotBtn = document.getElementById('forgotPasswordBtn');
+    const submitBtn = document.getElementById('passwordSubmitBtn');
+    const errorDiv = document.getElementById('passwordError');
+    
+    // Clear previous state
+    passwordInput.value = '';
+    document.getElementById('confirmPasswordInput').value = '';
+    document.getElementById('rememberSession').checked = false;
+    document.getElementById('disableAuth').checked = false;
+    errorDiv.style.display = 'none';
+    document.getElementById('passwordStrength').style.display = 'none';
+    
+    if (!passwordHash) {
+        // First time setup
+        title.textContent = 'Set Up Authentication';
+        description.textContent = 'Choose your security preference:';
+        confirmSection.style.display = 'block';
+        rememberContainer.style.display = 'none';
+        noAuthContainer.style.display = 'block';
+        forgotBtn.style.display = 'none';
+        submitBtn.textContent = 'Set Password';
+        
+        // Show password strength indicator for setup
+        passwordInput.addEventListener('input', updatePasswordStrength);
+    } else {
+        // Authentication
+        title.textContent = 'Enter Password';
+        description.textContent = 'Enter your password to access edit mode:';
+        confirmSection.style.display = 'none';
+        rememberContainer.style.display = 'block';
+        noAuthContainer.style.display = 'none';
+        forgotBtn.style.display = 'block';
+        submitBtn.textContent = 'Unlock';
+        
+        // Remove password strength listener
+        passwordInput.removeEventListener('input', updatePasswordStrength);
+    }
+    
+    modal.style.display = 'flex';
+    passwordInput.focus();
+      // Add keyboard listeners
+    passwordInput.addEventListener('keydown', handlePasswordKeydown);
+}
+
+function updatePasswordStrength() {
+    const passwordInput = document.getElementById('passwordInput');
+    const strengthDiv = document.getElementById('passwordStrength');
+    const password = passwordInput.value;
+    
+    if (password.length === 0) {
+        strengthDiv.style.display = 'none';
+        return;
+    }
+    
+    const strength = checkPasswordStrength(password);
+    strengthDiv.style.display = 'block';
+    strengthDiv.className = `password-strength ${strength}`;
+    
+    switch (strength) {
+        case 'weak':
+            strengthDiv.textContent = 'Weak - Use at least 4 characters';
+            break;
+        case 'medium':
+            strengthDiv.textContent = 'Medium - Consider adding numbers and uppercase letters';
+            break;
+        case 'strong':
+            strengthDiv.textContent = 'Strong password';
+            break;
+    }
+}
+
+function handlePasswordKeydown(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        submitPassword();
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        closePasswordModal();
+    }
+}
+
+async function submitPassword() {
+    const passwordInput = document.getElementById('passwordInput');
+    const confirmInput = document.getElementById('confirmPasswordInput');
+    const rememberCheckbox = document.getElementById('rememberSession');
+    const disableAuthCheckbox = document.getElementById('disableAuth');
+    const errorDiv = document.getElementById('passwordError');
+    const password = passwordInput.value.trim();
+    
+    // Check if user wants to disable authentication
+    if (disableAuthCheckbox && disableAuthCheckbox.checked) {
+        disableAuthentication();
+        return;
+    }
+    
+    if (!password) {
+        showPasswordError('Password is required');
+        return;
+    }
+    
+    if (!passwordHash) {
+        // First time setup
+        const confirmPassword = confirmInput.value.trim();
+        
+        if (password !== confirmPassword) {
+            showPasswordError('Passwords do not match');
+            return;
+        }
+        
+        if (password.length < 4) {
+            showPasswordError('Password must be at least 4 characters long');
+            return;
+        }
+        
+        // Create and store password hash
+        const salt = generateSalt();
+        passwordHash = await hashPassword(password, salt);
+        localStorage.setItem('taskManagerPasswordHash', passwordHash);
+        
+        closePasswordModal();
+        setEditMode();
+        showToast('Password set successfully!', 'success');
+    } else {
+        // Authentication
+        const isValid = await verifyPassword(password, passwordHash);
+        
+        if (isValid) {
+            sessionRemembered = rememberCheckbox.checked;
+            closePasswordModal();
+            setEditMode();
+        } else {            showPasswordError('Incorrect password');
+            passwordInput.select();
+        }
+    }
+}
+
+function showPasswordError(message) {
+    const errorDiv = document.getElementById('passwordError');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+}
+
+function closePasswordModal() {
+    const modal = document.getElementById('passwordModal');
+    const passwordInput = document.getElementById('passwordInput');
+    
+    modal.style.display = 'none';
+    passwordInput.removeEventListener('keydown', handlePasswordKeydown);
+    passwordInput.removeEventListener('input', updatePasswordStrength);
+}
+
+function showForgotPasswordDialog() {
+    closePasswordModal();
+    document.getElementById('forgotPasswordModal').style.display = 'flex';
+}
+
+function closeForgotPasswordModal() {
+    document.getElementById('forgotPasswordModal').style.display = 'none';
+}
+
+function resetAllData() {
+    if (confirm('This will permanently delete ALL your data and settings. This cannot be undone. Are you sure?')) {
+        // Clear all localStorage
+        localStorage.clear();
+        
+        // Reset global variables
+        passwordHash = null;
+        isEditMode = false;
+        isAuthenticated = false;
+        sessionRemembered = false;
+        
+        // Clear auto-lock timer
+        if (autoLockTimer) clearTimeout(autoLockTimer);
+        
+        // Reset data
+        allListsData = {};
+        currentListId = 'default';
+        customColumns = [];
+        
+        closeForgotPasswordModal();
+        setViewMode();
+        
+        // Reinitialize with default data
+        loadData();
+        
+        showToast('All data has been reset. You can now set a new password.', 'success');
+    }
+}
+
+function disableAuthentication() {
+    // Set a special marker to indicate authentication is disabled
+    localStorage.setItem('taskManagerPasswordHash', 'DISABLED');
+    passwordHash = 'DISABLED';
+    
+    // Enable edit mode immediately
+    setEditMode();
+    closePasswordModal();
+    
+    showToast('Authentication disabled. You can now edit tasks freely.', 'success');
+}
+
 // Column Management Functions
 function openColumnsModal() {
+    if (!requireEditMode()) return;
+    
     renderColumnList();
     document.getElementById('columnsModal').classList.add('show');
 }
@@ -2156,6 +2811,8 @@ function resetData() {
 
 // Selective reset modal functions
 function openResetModal() {
+    if (!requireEditMode()) return;
+    
     loadResetPreferences();
     document.getElementById('resetModal').classList.add('show');
 }
@@ -2219,6 +2876,8 @@ function performSelectiveReset() {
     const resetColumnWidths = document.getElementById('resetColumnWidths').checked;
     const resetFilters = document.getElementById('resetFilters').checked;
     const resetFilterPresets = document.getElementById('resetFilterPresets').checked;
+    const resetPassword = document.getElementById('resetPassword').checked;
+    const enableAuth = document.getElementById('enableAuth').checked;
 
     // Build confirmation message
     let resetItems = [];
@@ -2229,6 +2888,8 @@ function performSelectiveReset() {
     if (resetColumnWidths) resetItems.push('Column widths');
     if (resetFilters) resetItems.push('Search & filters');
     if (resetFilterPresets) resetItems.push('Saved filter presets');
+    if (resetPassword) resetItems.push('Authentication password');
+    if (enableAuth) resetItems.push('Re-enable authentication');
 
     if (resetItems.length === 0) {
         showToast('No reset options selected', 'error');
@@ -2304,9 +2965,7 @@ function performSelectiveReset() {
         selectedStatuses = [];
         updateStatusFilterText();
         resetActions.push('Filters cleared');
-    }
-
-    if (resetFilterPresets) {
+    }    if (resetFilterPresets) {
         // Clear all filter presets
         filterPresets = [];
         localStorage.removeItem('taskManagerFilterPresets');
@@ -2315,6 +2974,30 @@ function performSelectiveReset() {
         populatePresetsSelect();
         
         resetActions.push('Filter presets deleted');
+    }    if (resetPassword) {
+        // Clear password hash
+        localStorage.removeItem('taskManagerPasswordHash');
+        passwordHash = null;
+        
+        // Switch to view mode
+        setViewMode();
+        
+        resetActions.push('Password reset');
+    }
+
+    if (enableAuth) {
+        // Re-enable authentication if it was disabled
+        if (passwordHash === 'DISABLED') {
+            localStorage.removeItem('taskManagerPasswordHash');
+            passwordHash = null;
+            
+            // Switch to view mode
+            setViewMode();
+            
+            resetActions.push('Authentication re-enabled');
+        } else {
+            resetActions.push('Authentication was already enabled');
+        }
     }
 
     // Clean up any residual states if columns were reset
@@ -2409,6 +3092,17 @@ document.getElementById('taskForm').addEventListener('submit', function (e) {
 
 // Keyboard shortcuts
 document.addEventListener('keydown', function (e) {
+    // Skip shortcuts if user is typing in an input field (except specific cases)
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+        // Allow Escape key to work even in input fields
+        if (e.key === 'Escape') {
+            e.target.blur(); // Remove focus from input
+        }
+        // Allow only specific shortcuts in input fields
+        if (!(e.key === 'Escape' || (e.ctrlKey && e.key === 's'))) {
+            return;
+        }
+    }    // Task Management Shortcuts
     if (e.altKey && e.key === 'n') {
         e.preventDefault();
         openAddModal();
@@ -2423,18 +3117,64 @@ document.addEventListener('keydown', function (e) {
         openResetModal();
     } else if (e.ctrlKey && e.key === 'f') {
         e.preventDefault();
-        document.getElementById('searchInput').focus();    } else if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+        document.getElementById('searchInput').focus();
+    } else if (e.ctrlKey && e.shiftKey && e.key === 'F') {
         e.preventDefault();
         toggleAdvancedFilters();
-    } else if (e.ctrlKey && e.shiftKey && e.key === 'L') {
+    } else if (e.ctrlKey && e.key === 'u') {
+        e.preventDefault();
+        toggleAuthMode();
+        showToast(isEditMode ? 'Switched to Edit Mode' : 'Authentication required', isEditMode ? 'success' : 'info');
+    }// List Management Shortcuts
+    else if (e.ctrlKey && e.shiftKey && e.key === 'L') {
         e.preventDefault();
         toggleListsPanel();
-    } else if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+        showToast('Lists panel toggled');
+    } else if (e.ctrlKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        // Switch to previous list
+        switchToPreviousList();
+    } else if (e.ctrlKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        // Switch to next list
+        switchToNextList();
+    } else if (e.ctrlKey && e.key === '1') {
+        e.preventDefault();
+        switchToListByIndex(0);
+    } else if (e.ctrlKey && e.key === '2') {
+        e.preventDefault();
+        switchToListByIndex(1);
+    } else if (e.ctrlKey && e.key === '3') {
+        e.preventDefault();
+        switchToListByIndex(2);
+    } else if (e.ctrlKey && e.key === '4') {
+        e.preventDefault();
+        switchToListByIndex(3);
+    } else if (e.ctrlKey && e.key === '5') {
+        e.preventDefault();
+        switchToListByIndex(4);
+    } else if (e.ctrlKey && e.key === '6') {
+        e.preventDefault();
+        switchToListByIndex(5);
+    } else if (e.ctrlKey && e.key === '7') {
+        e.preventDefault();
+        switchToListByIndex(6);
+    } else if (e.ctrlKey && e.key === '8') {
+        e.preventDefault();
+        switchToListByIndex(7);
+    } else if (e.ctrlKey && e.key === '9') {
+        e.preventDefault();
+        switchToListByIndex(8);
+    }
+    
+    // Export/Copy Shortcuts
+    else if (e.ctrlKey && e.shiftKey && e.key === 'C') {
         e.preventDefault();
         copyToExcel();
     } else if (e.ctrlKey && e.shiftKey && e.key === 'E') {
         e.preventDefault();
-        exportToExcel();    } else if (e.key === 'Escape') {
+        exportToExcel();
+    } else if (e.key === 'Escape') {
         closeModal();
         closeImportModal();
         closeShortcutsModal();
@@ -2480,7 +3220,7 @@ document.addEventListener('keydown', function (e) {
     if (e.key === 'Control') {
         altKeyTimer = setTimeout(() => {
             document.getElementById('shortcutsHint').classList.add('show');
-        }, 800);
+        }, 1500);
     }
 });
 
@@ -2846,6 +3586,9 @@ function loadColumnWidths() {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize authentication system first
+    initializeAuthentication();
+    
     // Clean up any residual states
     cleanupColumnState();
     
@@ -2854,6 +3597,30 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize header edit and sort listeners for static headers
     addHeaderEditListeners();
+    
+    // Add event listener for disable auth checkbox
+    const disableAuthCheckbox = document.getElementById('disableAuth');
+    const passwordInput = document.getElementById('passwordInput');
+    const confirmInput = document.getElementById('confirmPasswordInput');
+    const submitBtn = document.getElementById('passwordSubmitBtn');
+    
+    if (disableAuthCheckbox) {
+        disableAuthCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                passwordInput.style.opacity = '0.5';
+                confirmInput.style.opacity = '0.5';
+                passwordInput.placeholder = 'Password not required when disabled';
+                confirmInput.placeholder = 'Password not required when disabled';
+                submitBtn.textContent = 'Disable Authentication';
+            } else {
+                passwordInput.style.opacity = '1';
+                confirmInput.style.opacity = '1';
+                passwordInput.placeholder = 'Enter password...';
+                confirmInput.placeholder = 'Confirm password...';
+                submitBtn.textContent = 'Set Password';
+            }
+        });
+    }
     
     // Initialize resize functionality after a short delay to ensure table is rendered
     setTimeout(() => {
@@ -2900,6 +3667,8 @@ let filterPresets = [];
 
 // Save current filters as a preset
 function saveFilterPreset() {
+    if (!requireEditMode()) return;
+    
     const presetNameInput = document.getElementById('presetNameInput');
     const presetName = presetNameInput.value.trim();
     
@@ -2940,76 +3709,21 @@ function saveFilterPreset() {
     
     // Save to localStorage
     saveFilterPresets();
-    
-    // Update UI
+      // Update UI
     populatePresetsSelect();
     presetNameInput.value = '';
     
     showToast(`Filter preset "${presetName}" saved successfully`, 'success');
 }
 
-// Load selected filter preset
-function loadFilterPreset() {
-    const presetsSelect = document.getElementById('filterPresetsSelect');
-    const selectedPresetId = presetsSelect.value;
+// Delete preset from quick filter (with event handling)
+function deletePresetFromQuickFilter(presetId, event) {
+    if (!requireEditMode()) return;
     
-    if (!selectedPresetId) {
-        showToast('Please select a preset to load', 'error');
-        return;
-    }
+    // Prevent triggering the parent click event
+    event.stopPropagation();
     
-    loadSelectedPreset();
-}
-
-// Load the selected preset from dropdown
-function loadSelectedPreset() {
-    const presetsSelect = document.getElementById('filterPresetsSelect');
-    const selectedPresetId = presetsSelect.value;
-    
-    if (!selectedPresetId) {
-        return;
-    }
-    
-    const preset = filterPresets.find(p => p.id === selectedPresetId);
-    if (!preset) {
-        showToast('Preset not found', 'error');
-        return;
-    }
-    
-    // Clear current filters
-    advancedFilters = [];
-    activeQuickFilter = null;
-    
-    // Load preset filters
-    advancedFilters = [...preset.filters]; // Deep copy
-    
-    // Set filter logic
-    const logicRadio = document.querySelector(`input[name="filterLogic"][value="${preset.logic}"]`);
-    if (logicRadio) {
-        logicRadio.checked = true;
-    }
-      // Apply filters and update UI
-    applyAdvancedFilters();
-    renderActiveFilters();
-    renderQuickFilters(); // Add quick filters rendering
-    saveAdvancedFilters();
-    updateFilterIndicator();
-    updateCurrentFiltersInfo(); // Update current filters info
-    
-    showToast(`Filter preset "${preset.name}" loaded successfully`, 'success');
-}
-
-// Delete selected filter preset
-function deleteFilterPreset() {
-    const presetsSelect = document.getElementById('filterPresetsSelect');
-    const selectedPresetId = presetsSelect.value;
-    
-    if (!selectedPresetId) {
-        showToast('Please select a preset to delete', 'error');
-        return;
-    }
-    
-    const preset = filterPresets.find(p => p.id === selectedPresetId);
+    const preset = filterPresets.find(p => p.id === presetId);
     if (!preset) {
         showToast('Preset not found', 'error');
         return;
@@ -3019,8 +3733,18 @@ function deleteFilterPreset() {
         return;
     }
     
+    // If this preset is currently active, clear it
+    if (activeQuickFilter === `preset_${presetId}`) {
+        activeQuickFilter = null;
+        advancedFilters = [];
+        applyAdvancedFilters();
+        renderActiveFilters();
+        updateFilterIndicator();
+        saveAdvancedFilters();
+    }
+    
     // Remove preset
-    filterPresets = filterPresets.filter(p => p.id !== selectedPresetId);
+    filterPresets = filterPresets.filter(p => p.id !== presetId);
     
     // Save to localStorage
     saveFilterPresets();
@@ -3031,27 +3755,20 @@ function deleteFilterPreset() {
     showToast(`Filter preset "${preset.name}" deleted successfully`, 'info');
 }
 
-// Populate presets dropdown
+// Update presets UI
 function populatePresetsSelect() {
-    const presetsSelect = document.getElementById('filterPresetsSelect');
     const presetCountElement = document.getElementById('presetCount');
     
-    // Clear existing options except the first one
-    presetsSelect.innerHTML = '<option value="">Choose a preset to load...</option>';
-    
     // Update preset count
-    presetCountElement.textContent = `${filterPresets.length} preset${filterPresets.length !== 1 ? 's' : ''}`;
-    
-    // Add preset options
-    filterPresets.forEach(preset => {
-        const option = document.createElement('option');
-        option.value = preset.id;
-        option.textContent = `${preset.name} (${preset.filters.length} filter${preset.filters.length !== 1 ? 's' : ''})`;
-        presetsSelect.appendChild(option);
-    });
+    if (presetCountElement) {
+        presetCountElement.textContent = `${filterPresets.length} preset${filterPresets.length !== 1 ? 's' : ''}`;
+    }
     
     // Update current filters info
     updateCurrentFiltersInfo();
+    
+    // Re-render quick filters to include new presets
+    renderQuickFilters();
 }
 
 // Update current filters info display
@@ -3190,21 +3907,25 @@ function renderQuickFilters() {
             </div>
         `;
         return;
-    }
-    
-    container.innerHTML = quickFilters.map(filter => {
+    }    container.innerHTML = quickFilters.map(filter => {
         const count = getFilterCount(filter);
         const isActive = activeQuickFilter === filter.id;
+        const isPreset = filter.type === 'preset';
         
         return `
-            <div class="quick-filter-item ${isActive ? 'active' : ''}" 
+            <div class="quick-filter-item ${isActive ? 'active' : ''} ${isPreset ? 'preset' : ''}" 
                  onclick="applyQuickFilter('${filter.id}')" 
-                 data-filter-id="${filter.id}">
+                 data-filter-id="${filter.id}"
+                 title="${isPreset ? `Preset: ${filter.name} (${filter.preset.filters.length} filter${filter.preset.filters.length !== 1 ? 's' : ''})` : filter.name}">
                 <span class="filter-name">${filter.name}</span>
                 <span class="filter-count">${count}</span>
+                ${isPreset ? `<button class="preset-delete-btn" onclick="deletePresetFromQuickFilter('${filter.preset.id}', event)" title="Delete preset">×</button>` : ''}
             </div>
         `;
     }).join('');
+    
+    // Apply view mode restrictions to newly rendered quick filters
+    updateUIForMode();
 }
 
 function getAvailableColumns() {
@@ -3238,11 +3959,37 @@ function getAvailableQuickFilters(availableColumns) {
         );
     }
     
+    // Add saved presets as quick filters
+    filterPresets.forEach(preset => {
+        filters.push({
+            id: `preset_${preset.id}`,
+            name: preset.name,
+            type: 'preset',
+            preset: preset
+        });
+    });
+    
     return filters;
 }
 
 function getFilterCount(filter) {
+    if (filter.type === 'preset') {
+        // For preset filters, calculate count based on preset's filters
+        return getPresetFilterCount(filter.preset);
+    }
     return tasks.filter(task => matchesQuickFilter(task, filter)).length;
+}
+
+function getPresetFilterCount(preset) {
+    return tasks.filter(task => {
+        if (preset.logic === 'OR') {
+            // At least one filter must match
+            return preset.filters.some(filter => applyFilterToTask(task, filter));
+        } else {
+            // All filters must match (AND logic)
+            return preset.filters.every(filter => applyFilterToTask(task, filter));
+        }
+    }).length;
 }
 
 function matchesQuickFilter(task, filter) {
@@ -3289,15 +4036,33 @@ function applyQuickFilter(filterId) {
     if (activeQuickFilter === filterId) {
         // Toggle off - remove the filter
         activeQuickFilter = null;
-    } else {
+        // If it was a preset filter, clear advanced filters
+        if (filter.type === 'preset') {
+            advancedFilters = [];
+        }    } else {
         // Apply the quick filter
         activeQuickFilter = filterId;
+        
+        // If it's a preset filter, load it as advanced filters
+        if (filter.type === 'preset') {
+            advancedFilters = [...filter.preset.filters]; // Deep copy
+            // Set filter logic
+            const logicRadio = document.querySelector(`input[name="filterLogic"][value="${filter.preset.logic}"]`);
+            if (logicRadio) {
+                logicRadio.checked = true;
+            }
+        } else {
+            // For regular quick filters, clear any existing advanced filters (from presets)
+            advancedFilters = [];
+        }
     }
     
     // Use the unified filtering system
     applyAdvancedFilters();
     renderQuickFilters(); // Re-render to update active state
+    renderActiveFilters(); // Update active filters display
     updateFilterIndicator(); // Update filter indicator
+    saveAdvancedFilters(); // Save current state
 }
 
 // Populate column options for filter dropdown
@@ -3599,13 +4364,14 @@ function applyAdvancedFilters() {
         if (!matchesOriginalFilters) {
             return false;
         }
-        
-        // Apply quick filter if active
+          // Apply quick filter if active (but not for preset filters)
         if (activeQuickFilter) {
             const availableColumns = getAvailableColumns();
             const quickFilters = getAvailableQuickFilters(availableColumns);
             const quickFilter = quickFilters.find(f => f.id === activeQuickFilter);
-            if (quickFilter && !matchesQuickFilter(task, quickFilter)) {
+            
+            // If it's a preset filter, it will be handled by advanced filters below
+            if (quickFilter && quickFilter.type !== 'preset' && !matchesQuickFilter(task, quickFilter)) {
                 return false;
             }
         }
@@ -3772,9 +4538,7 @@ function renderFilteredTasks(filteredTasks) {
         }).join('');
 
         return `<tr data-id="${task.sr}" class="status-row-${task.status.toLowerCase()}">${cells}</tr>`;
-    }).join('');
-
-    // Re-add event listeners for inline editing
+    }).join('');    // Re-add event listeners for inline editing
     document.querySelectorAll('.editable').forEach(el => {
         el.addEventListener('dblclick', function () {
             startInlineEdit(this);
@@ -3787,6 +4551,9 @@ function renderFilteredTasks(filteredTasks) {
         initializeColumnResize();
         loadColumnWidths();
     }, 50);
+    
+    // Apply view mode restrictions to newly rendered content
+    updateUIForMode();
 }
 
 // Save advanced filters to localStorage

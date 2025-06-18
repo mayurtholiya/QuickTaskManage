@@ -24,7 +24,19 @@
                     <span>
                         <h1 class="title editable-title" ondblclick="startEditListTitle()"
                             title="Double-click to edit list name">Multi-List Task Manager</h1>
-                    </span>
+                    </span>                    <!-- Minimal Toggle Mode Button -->
+                    <div class="auth-section">
+                        <button class="mode-toggle locked" id="authToggleBtn" onclick="toggleAuthMode()"
+                            title="Click to toggle between View and Edit mode">
+                            <svg class="toggle-icon locked" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M4 4a4 4 0 0 1 8 0v2h1a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h1V4zm6 2V4a2 2 0 1 0-4 0v2h4z"/>
+                            </svg>
+                            <svg class="toggle-icon unlocked" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M8 1a3.5 3.5 0 0 0-3.5 3.5V6H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1.5V4.5A3.5 3.5 0 0 0 8 1zm2 5V4.5a2 2 0 1 0-4 0V6h4z"/>
+                            </svg>
+                            <span class="mode-text" id="modeIndicator">VIEW MODE</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="stats">
                     <div class="stat">
@@ -253,9 +265,7 @@
                         <input type="text" id="filterValue2" placeholder="To value..." style="display: none;">
                     </div>
                 </div>
-            </div>
-
-            <!-- Filter Presets Section -->
+            </div> <!-- Filter Presets Section -->
             <div class="filter-presets-section">
                 <div class="section-header">
                     <h4>Saved Presets</h4>
@@ -263,33 +273,6 @@
                 </div>
 
                 <div class="presets-content">
-                    <!-- Load Preset Area -->
-                    <div class="preset-load-area">
-                        <div class="preset-select-container">
-                            <select id="filterPresetsSelect" onchange="loadSelectedPreset()">
-                                <option value="">Choose a preset to load...</option>
-                            </select>
-                            <button type="button" class="btn-icon" onclick="loadFilterPreset()"
-                                title="Load Selected Preset">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
-                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                    <circle cx="12" cy="12" r="3"></circle>
-                                </svg>
-                            </button>
-                            <button type="button" class="btn-icon btn-danger" onclick="deleteFilterPreset()"
-                                title="Delete Selected Preset">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
-                                    <polyline points="3,6 5,6 21,6"></polyline>
-                                    <path
-                                        d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v2">
-                                    </path>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
                     <!-- Save Preset Area -->
                     <div class="preset-save-area">
                         <div class="save-preset-header">
@@ -552,59 +535,78 @@
                 <button type="button" class="btn btn-primary" onclick="applyColumnChanges()">Apply Changes</button>
             </div>
         </div>
-    </div>
-
-    <!-- Reset Options Modal -->
+    </div>    <!-- Reset Options Modal -->
     <div class="modal" id="resetModal">
         <div class="modal-content">
             <h2>Reset Options</h2>
             <p>Choose what you want to reset:</p>
 
             <div class="reset-options">
-                <div class="reset-section">
-                    <h3>Data Reset</h3>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="resetTasks" checked>
-                        <span class="checkmark"></span>
-                        Reset task data to original
-                    </label>
-                </div>
+                <div class="reset-grid">
+                    <div class="reset-column">
+                        <div class="reset-section">
+                            <h3>Data Reset</h3>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="resetTasks" checked>
+                                <span class="checkmark"></span>
+                                Reset task data to original
+                            </label>
+                        </div>
 
-                <div class="reset-section">
-                    <h3>Column Management</h3>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="resetCustomColumns" checked>
-                        <span class="checkmark"></span>
-                        Remove all custom columns
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="resetColumnNames" checked>
-                        <span class="checkmark"></span>
-                        Reset column names to default
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="resetColumnOrder" checked>
-                        <span class="checkmark"></span>
-                        Reset column sequence/order
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="resetColumnWidths" checked>
-                        <span class="checkmark"></span>
-                        Reset column widths to default
-                    </label>
-                </div>
-                <div class="reset-section">
-                    <h3>Settings & Preferences</h3>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="resetFilters">
-                        <span class="checkmark"></span>
-                        Clear search and filter settings
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="resetFilterPresets">
-                        <span class="checkmark"></span>
-                        Delete all saved filter presets
-                    </label>
+                        <div class="reset-section">
+                            <h3>Column Management</h3>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="resetCustomColumns" checked>
+                                <span class="checkmark"></span>
+                                Remove all custom columns
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="resetColumnNames" checked>
+                                <span class="checkmark"></span>
+                                Reset column names to default
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="resetColumnOrder" checked>
+                                <span class="checkmark"></span>
+                                Reset column sequence/order
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="resetColumnWidths" checked>
+                                <span class="checkmark"></span>
+                                Reset column widths to default
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="reset-column">
+                        <div class="reset-section">
+                            <h3>Settings & Preferences</h3>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="resetFilters">
+                                <span class="checkmark"></span>
+                                Clear search and filter settings
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="resetFilterPresets">
+                                <span class="checkmark"></span>
+                                Delete all saved filter presets
+                            </label>
+                        </div>
+
+                        <div class="reset-section">
+                            <h3>Security</h3>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="resetPassword">
+                                <span class="checkmark"></span>
+                                Reset authentication password
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="enableAuth">
+                                <span class="checkmark"></span>
+                                Re-enable authentication (if disabled)
+                            </label>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -613,7 +615,77 @@
                 <button type="button" class="btn btn-danger" onclick="performSelectiveReset()">Reset Selected</button>
             </div>
         </div>
-    </div> <!-- Shortcuts Help Modal -->
+    </div>
+
+    <!-- Password Authentication Modal -->    <!-- Password Modal -->
+    <div class="modal password-modal" id="passwordModal">
+        <div class="modal-content password-modal-content">
+            <div class="password-modal-header">
+                <div class="password-icon">🔒</div>
+                <h2 id="passwordModalTitle">Enter Password</h2>
+                <p id="passwordModalDescription">Enter your password to access edit mode</p>
+            </div>
+
+            <div class="password-form">
+                <div class="form-group compact">
+                    <input type="password" id="passwordInput" placeholder="Enter password..." maxlength="50"
+                        autocomplete="current-password">
+                    <div class="password-strength" id="passwordStrength" style="display: none;"></div>
+                </div>
+
+                <div id="setupPasswordSection" style="display: none;">
+                    <div class="form-group compact">
+                        <input type="password" id="confirmPasswordInput" placeholder="Confirm password..." maxlength="50"
+                            autocomplete="new-password">
+                    </div>
+                </div>                <div class="form-group compact">
+                    <label class="checkbox-label minimal" id="rememberSessionContainer">
+                        <input type="checkbox" id="rememberSession">
+                        <span class="checkmark"></span>
+                        Remember for this session
+                    </label>
+                </div>
+
+                <div class="form-group compact" id="noAuthContainer" style="display: none;">
+                    <label class="checkbox-label minimal">
+                        <input type="checkbox" id="disableAuth">
+                        <span class="checkmark"></span>
+                        Skip authentication (no password required)
+                    </label>
+                </div>
+
+                <div class="error-message" id="passwordError" style="display: none;"></div>
+
+                <div class="password-actions">
+                    <button type="button" class="btn btn-minimal" onclick="closePasswordModal()">Cancel</button>
+                    <button type="button" class="btn btn-link" id="forgotPasswordBtn" onclick="showForgotPasswordDialog()"
+                        style="display: none;">Forgot Password?</button>
+                    <button type="button" class="btn btn-link" id="noAuthBtn" onclick="disableAuthentication()"
+                        style="display: none;">No Authentication</button>
+                    <button type="button" class="btn btn-primary compact" id="passwordSubmitBtn"
+                        onclick="submitPassword()">Unlock</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Forgot Password Confirmation Modal -->
+    <div class="modal password-modal" id="forgotPasswordModal">
+        <div class="modal-content password-modal-content compact">
+            <div class="password-modal-header">
+                <div class="password-icon warning">⚠️</div>
+                <h2>Reset Password</h2>
+                <p>This will permanently delete all your data and reset the password.</p>
+            </div>
+
+            <div class="password-actions">
+                <button type="button" class="btn btn-minimal" onclick="closeForgotPasswordModal()">Cancel</button>
+                <button type="button" class="btn btn-danger compact" onclick="resetAllData()">Reset Everything</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shortcuts Help Modal -->
     <div class="modal" id="shortcutsModal">
         <div class="modal-content">
             <h2>Keyboard Shortcuts & Help</h2>
@@ -624,6 +696,8 @@
                         <p><strong>Getting Started:</strong></p>
                         <ul>
                             <li>Use <kbd>Alt+N</kbd> to quickly add new tasks</li>
+                            <li>Use <kbd>Ctrl+Shift+L</kbd> to manage multiple lists</li>
+                            <li>Use <kbd>Ctrl+←/→</kbd> to navigate between lists</li>
                             <li>Double-click any task field to edit it inline</li>
                             <li>Click priority numbers (0-10) to change priority</li>
                             <li>Click status badges to cycle through states</li>
@@ -635,6 +709,10 @@
                     <h3>Pro Tips</h3>
                     <div class="help-content">
                         <ul>
+                            <li><strong>Multi-List Management:</strong> Create multiple lists for different projects
+                            </li>
+                            <li><strong>Quick List Switch:</strong> Use Ctrl+1-9 to switch to specific lists</li>
+                            <li><strong>List Navigation:</strong> Use Ctrl+Arrow keys for quick navigation</li>
                             <li><strong>Column Management:</strong> Drag headers to reorder, double-click to rename</li>
                             <li><strong>Sorting:</strong> Click column headers to sort data</li>
                             <li><strong>Filtering:</strong> Use status checkboxes and priority dropdown</li>
@@ -655,18 +733,17 @@
                     <div class="shortcut-item">
                         <kbd>Ctrl</kbd> + <kbd>I</kbd>
                         <span>Import data</span>
-                    </div>
-                    <div class="shortcut-item">
+                    </div>                    <div class="shortcut-item">
                         <kbd>Ctrl</kbd> + <kbd>M</kbd>
                         <span>Manage columns</span>
                     </div>
                     <div class="shortcut-item">
-                        <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd>
-                        <span>Advanced filters</span>
+                        <kbd>Ctrl</kbd> + <kbd>U</kbd>
+                        <span>Toggle unlock/lock mode</span>
                     </div>
                     <div class="shortcut-item">
-                        <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>L</kbd>
-                        <span>Manage lists</span>
+                        <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd>
+                        <span>Advanced filters</span>
                     </div>
                     <div class="shortcut-item">
                         <kbd>Ctrl</kbd> + <kbd>R</kbd>
@@ -700,6 +777,10 @@
                         <span>Edit column name</span>
                     </div>
                     <div class="shortcut-item">
+                        <span class="action-desc">Double-click title</span>
+                        <span>Edit list name</span>
+                    </div>
+                    <div class="shortcut-item">
                         <span class="action-desc">Click priority</span>
                         <span>Change priority</span>
                     </div>
@@ -720,6 +801,21 @@
                         <span>Show shortcuts overlay</span>
                     </div>
                 </div>
+                <div class="shortcut-section">
+                    <h3>List Management</h3>
+                    <div class="shortcut-item">
+                        <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>L</kbd>
+                        <span>Open lists panel</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Ctrl</kbd> + <kbd>←</kbd> / <kbd>→</kbd>
+                        <span>Switch to prev/next list</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Ctrl</kbd> + <kbd>1</kbd>-<kbd>9</kbd>
+                        <span>Switch to list by position</span>
+                    </div>
+                </div>
             </div>
 
             <div class="form-actions">
@@ -730,17 +826,97 @@
     <div class="toast" id="toast"></div>
     <div class="resize-line" id="resizeLine"></div>
     <div class="shortcuts-hint" id="shortcutsHint">
-        <strong>Shortcuts:</strong><br>
-        <kbd>Alt+N</kbd> Add<br>
-        <kbd>Ctrl+I</kbd> Import<br>
-        <kbd>Ctrl+M</kbd> Columns<br> <kbd>Ctrl+Shift+F</kbd> Filters<br>
-        <kbd>Ctrl+Shift+L</kbd> Lists<br>
-        <kbd>Ctrl+R</kbd> Reset<br>
-        <kbd>Ctrl+Shift+C</kbd> Copy<br>
-        <kbd>Ctrl+Shift+E</kbd> Export<br>
-        <kbd>Ctrl+F</kbd> Search<br>
-        <kbd>F1</kbd> Help
+        <div class="shortcuts-overlay-content">
+            <div class="shortcuts-title">Keyboard Shortcuts</div>
+            <div class="shortcuts-list">
+                <div class="shortcut-item">
+                    <div class="shortcut-keys">
+                        <kbd>Alt</kbd><kbd>N</kbd>
+                    </div>
+                    <div class="shortcut-description">Add new task</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys">
+                        <kbd>Ctrl</kbd><kbd>I</kbd>
+                    </div>
+                    <div class="shortcut-description">Import data</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys">
+                        <kbd>Ctrl</kbd><kbd>F</kbd>
+                    </div>
+                    <div class="shortcut-description">Focus search</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys">
+                        <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>F</kbd>
+                    </div>
+                    <div class="shortcut-description">Advanced filters</div>
+                </div>                <div class="shortcut-item">
+                    <div class="shortcut-keys">
+                        <kbd>Ctrl</kbd><kbd>M</kbd>
+                    </div>
+                    <div class="shortcut-description">Manage columns</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys">
+                        <kbd>Ctrl</kbd><kbd>U</kbd>
+                    </div>
+                    <div class="shortcut-description">Toggle unlock/lock</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys">
+                        <kbd>Ctrl</kbd><kbd>R</kbd>
+                    </div>
+                    <div class="shortcut-description">Reset options</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys">
+                        <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>L</kbd>
+                    </div>
+                    <div class="shortcut-description">Lists panel</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys">
+                        <kbd>Ctrl</kbd><kbd>←</kbd><kbd>→</kbd>
+                    </div>
+                    <div class="shortcut-description">Switch lists</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys">
+                        <kbd>Ctrl</kbd><kbd>1-9</kbd>
+                    </div>
+                    <div class="shortcut-description">Jump to list</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys">
+                        <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>C</kbd>
+                    </div>
+                    <div class="shortcut-description">Copy to clipboard</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys">
+                        <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>E</kbd>
+                    </div>
+                    <div class="shortcut-description">Export to Excel</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys">
+                        <kbd>F1</kbd>
+                    </div>
+                    <div class="shortcut-description">Show help</div>
+                </div>
+                <div class="shortcut-item">
+                    <div class="shortcut-keys">
+                        <kbd>Esc</kbd>
+                    </div>
+                    <div class="shortcut-description">Cancel/Close</div>
+                </div>
+            </div>
+            <div class="shortcuts-hint-text">Hold <kbd>Ctrl</kbd> to show this overlay</div>
+        </div>
     </div>
     <script src="script.js"></script>
 </body>
+
 </html>
